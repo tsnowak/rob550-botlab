@@ -12,6 +12,9 @@
 #include <deque>
 #include <mutex>
 
+//only added to test inflate Map, can be deleted after that
+#include <planning/obstacle_distance_grid.hpp>
+
 /**
 * OccupancyGridSLAM runs on a thread and handles mapping.
 * 
@@ -90,6 +93,9 @@ private:
     ParticleFilter filter_;
     OccupancyGrid map_;
     Mapping mapper_;
+    
+    // only to test inflated map routine, delete after that
+    // ObstacleDistanceGrid testMap_;
     
     lcm::LCM& lcm_;
     int mapUpdateCount_;  // count so we only send the map occasionally, as it takes lots of bandwidth

@@ -18,9 +18,9 @@
 const float kMinDistanceToObstacle = 2*0.05f;    // robot diameter is 7.5cm, stepping on cell #2 could easily cause a collision
 const float kMaxDistanceWithCost = 3*0.05f;      // preferably we keep 3 cells away from walls but if needed we can step on cell #3
 const float kDistanceCostExponent = 1.0f ;       // 
+const float kNonNavigable = 0;                  // inflatedMap cells with values larger than this are non-navigable
 const float kReachedPositionThreshold = 0.05f;  // must get within this distance of a position for it to be explored
 const float kMinFrontierLength = 0.1;
-const float kNonNavigable = 3000;                  // inflatedMap cells with values larger than this are non-navigable
 
 // Define an equality operator for poses to allow direct comparison of two paths
 bool operator==(const pose_xyt_t& lhs, const pose_xyt_t& rhs)
@@ -100,13 +100,11 @@ bool Exploration::exploreEnvironment()
         // If data is ready, then run an update of the exploration routine
         if(isReadyToUpdate())
         {
-            //printf("EXPLORATION :: EXPLORE ENVIRONMENT :: running exploration\n");
             runExploration();
         }
         // Otherwise wait a bit for data to arrive
         else
         {
-            //printf("EXPLORATION :: EXPLORE ENVIRONMENT :: usleep\n");
             usleep(10000);
         }
     }
@@ -135,7 +133,6 @@ void Exploration::handlePose(const lcm::ReceiveBuffer* rbuf, const std::string& 
 bool Exploration::isReadyToUpdate(void)
 {
     std::lock_guard<std::mutex> autoLock(dataLock_);
-    //printf("exploration:: isReady to Update :: haveNewMap: %d\t haveNewPose: %d\n", haveNewMap_, haveNewPose_); 
     return haveNewMap_ && haveNewPose_;
 }
 
@@ -185,7 +182,6 @@ void Exploration::executeStateMachine(void)
     robot_path_t previousPath = currentPath_;
     
     // Run the state machine until the state remains the same after an iteration of the loop
-    printf("\n\nSTATE MACHINE : state_ = %i \n", state_);
     do
     {
         switch(state_)
@@ -227,22 +223,10 @@ void Exploration::executeStateMachine(void)
         
     } while(stateChanged);
     
-    //printf("State Machine  :: previous path length = %i and last element x,y = %f , %f\n", previousPath.path_length, previousPath.path.end()->x, previousPath.path.end()->y);
-    //printf("State Machine  :: current path length = %i and last element x,y = %f , %f\n", currentPath_.path_length, currentPath_.path.end()->x, currentPath_.path.end()->y);
-
     if(previousPath.path != currentPath_.path)
     {
-        //std::cout << "INFO: Exploration: A new path was created on this iteration. Sending to Maebot...\n";
+        std::cout << "INFO: Exploration: A new path was created on this iteration. Sending to Maebot...\n";
         lcmInstance_->publish(CONTROLLER_PATH_CHANNEL, &currentPath_);
-        //printf("PUBLISHED PATH: \n");
-        /*
-        for (uint i = 0; i < currentPath_.path.size(); i++)
-        {
-            printf("%u: (%f, %f)\n", i, currentPath_.path[i].x, currentPath_.path[i].y);
-        }
-        printf("\n");
-        */
-        printf("State Machine  :: current path published to CONTROLLER_PATH_CHANNEL\n");
     }
 }
 
@@ -265,54 +249,35 @@ int8_t Exploration::executeInitializing(void)
 
 // returns true if it finds at least one reachable frontier, nf is a point with the coordinates to the nearest frontier
 // returns false if there are no more frontiers or if the remaining frontiers are not reachable (too small or no A*path)
-bool Exploration::nearestReachableFrontier(Point<float> &gfm, const pose_xyt_t& rPose)
+bool Exploration::nearestReachableFrontier(Point<int> &gfm, const pose_xyt_t& rPose)
 {
-	Point<float> fp,lfm,lgfm;
+	Point<int> fp,lfm;
 	frontier_t f;
 	pose_xyt_t nf_pose;
 
-    fp.x = fp.y = lfm.x = lfm.y = lgfm.x = lgfm.y = -7; // initial value outside the grid range
+    fp.x = fp.y = lfm.x = lfm.y = gfm.x = gfm.y = -1; // initial value outside the grid range
     nf_pose.x = lfm.x;
     nf_pose.y = lfm.y;
 	nf_pose.theta = 0;  			// temporarily at 0, check with Ted
-	float d =1000;
-	float localMin = 500; 			//set to 500 cells larger than max posible distance between 2 points of the grid (200 +200) cells
-	float globalMin = 500;
-    //frontier_t f_it;
-
-    float csize = 0.05; // this is the cell size 5cm
-    float Xg, Yg;
-    Xg = Yg = 5;  // this is the offset of the corner of the map to the center of the map. x,y are generally 0,0 in the center of the map and can take neg values
-    int fp_row, fp_col;
+	int d =1000;
+	int localMin; 			//set to 500 cells larger than max posible distance between 2 points of the grid (200 +200) cells
+	int globalMin = 500;
 
     if(frontiers_.empty())
-        {
-            printf("EXP:: nearestFront = frontiers-.size() = %lu \n", frontiers_.size());
-            return false;
-        }             //no frontiers exist
+        {return false;}             //no frontiers exist
 
-    printf("NEAR FRONT:: frontiers_.size () = %lu \n\n", frontiers_.size());
-    for(frontier_t f_it : frontiers_)     //for all frontiers
+    for(auto f_it : frontiers_)     //for all frontiers
     {
-    	//printf("NEAR FRONT:: initial valu eof fp Point coordinate before changin =  %f %f \n", fp.x, fp.y);// inflatedMap_(fp.x,fp.y));
-        localMin = 500;
+    	localMin = 500;
     	f = f_it;
-        printf("NEAR FRONT:: number of points in frontier = %lu \n", f.cells.size());
-        for (Point<float> p_it : f.cells)  	//for all points within each frontier, select closest point to current pose
+        for (auto p_it : f.cells)  	//for all points within each frontier, select closest point to current pose
         {    
             fp = p_it;
-            //fp.x = p_it.x;
-            //fp.y = p_it.y;
-            fp_row = floor((fp.x+Xg)/csize);
-            fp_col = floor((fp.y+Yg)/csize);
-
-            //printf("NEAR FRONT::frontier point GRID coordinates %i %i  and inflated map value = %f \n", fp_row, fp_col, inflatedMap_(fp_row,fp_col));// inflatedMap_(fp.x,fp.y));
-           
             // frontiers are by definition reachable (connected to a previous robot position by a beam) and straingt lines
             // however the robot cannot drive to the points of the frontier that are close to the wall (in the padding zone)
-            if (inflatedMap_(fp_row,fp_col) < kNonNavigable) 		//skip if the point is in padding zone (notReachable)
-            {	
-                d = abs(rPose.x-fp.x)+abs(rPose.y-fp.y);        // we could use a more precise mesure of distance if this behaves poorly
+            if (inflatedMap_(fp.x,fp.y) < kNonNavigable) 		//skip if the point is in padding zone (notReachable)
+            {
+            	d = abs(rPose.x-fp.x)+abs(rPose.y-fp.y);        // we could use a more precise mesure of distance if this behaves poorly
                 if ( d < localMin )                             // frontier point is closer than current closest point
                 {
                     lfm = fp;
@@ -320,44 +285,19 @@ bool Exploration::nearestReachableFrontier(Point<float> &gfm, const pose_xyt_t& 
                 }
             }
         }
-        printf("FRONTIER : CLOSEST POINT (may not be reachable) at row/col = %i,%i and x/y = %0.2f,%0.2f  with  wieght = %0.2f\n", fp_row, fp_col, lfm.x, lfm.y, inflatedMap_(fp_row,fp_col));
         if (localMin<500) 			// there is at least one point reachable in the frontier being checked
         {
         	nf_pose.x = lfm.x;
             nf_pose.y = lfm.y;
-            fp_row = floor((lfm.x+Xg)/csize);
-            fp_col = floor((lfm.y+Yg)/csize);           
-            printf("FRONTIER : reachable point at row/col = %i,%i and x/y = %0.2f,%0.2f  with  wieght = %0.2f\n", fp_row, fp_col, lfm.x, lfm.y, inflatedMap_(fp_row,fp_col));
-            //printf("NEAREST FRONTIER : global minimum currently at x = %f   y = %f  \n", gfm.x, gfm.y);
         	d = search_for_path(rPose, nf_pose, inflatedMap_, params_).path_length;        // length of A* path
-            if ( d < globalMin && d>1 )                             	// this frontier point is closer than current closest point
+            if ( d < globalMin )                             	// this frontier point is closer than current closest point
             {
-                lgfm = lfm;
+                gfm = lfm;
                 globalMin = d;
-                //printf("\nUPDATING GLOBAL MINIMUM\n");
-                //printf("NEAREST FRONTIER : local minimum updated to x = %f   y = %f  \n", lfm.x, lfm.y);
-                //printf("NEAREST FRONTIER : global minimum updated to x = %f   y = %f  \n\n", lgfm.x, lgfm.y);
             }
         }
-        else 
-        { printf("FRONTIER : non reachable point in this frontier\n\n"); }
     }
-    //printf("\nNEAREST FRONTIER : local frontier currently at x = %i   y = %i  \n", fp_row, fp_col);
-    //printf("NEAREST FRONTIER : global minimum currently at x = %f   y = %f  \n", lgfm.x, lgfm.y);
-    if ( globalMin < 500 )  //found nearest frontier returned by reference in & gfm
-    {
-        gfm = lgfm;
-        fp_row = floor((lgfm.x+Xg)/csize);
-        fp_col = floor((lgfm.y+Yg)/csize);  
-        printf("NEAREST FRONTIER : lgfm ,  nearest frontier x = %i   nearest frontier y = %i  \n", fp_row, fp_col);
-        printf("NEAREST FRONTIER : GlobalMin = %f   nearest frontier x = %f   nearest frontier y = %f  \n", globalMin, lgfm.x, lgfm.y);
-        fp_row = floor((gfm.x+Xg)/csize);
-        fp_col = floor((gfm.y+Yg)/csize);  
-        printf("NEAREST FRONTIER : lgfm ,  nearest frontier x = %i   nearest frontier y = %i  \n", fp_row, fp_col);
-        printf("NEAREST FRONTIER : GlobalMin = %f   nearest frontier x = %f   nearest frontier y = %f  \n", globalMin, gfm.x, gfm.y);
-        return true;
-    }
-    printf("NEAREST FRONTIER : no frontier found ! \n");
+    if ( globalMin < 500 ) {return true;} 	//found nearest frontier returned by reference in & gfm
     return false;                       	//did not find a nearest frontier, only if no frontier points are reachable
 }
 
@@ -378,10 +318,10 @@ int8_t Exploration::executeExploringMap(bool initialize)
     *       -- You will likely be able to see the frontier before actually reaching the end of the path leading to it.
     */
     
-    Point<float> nf;      // used to store nearest frontier grid coordinates
+    Point<int> nf;      // used to store nearest frontier grid coordinates
     nf.x = nf.y = -1;   // initialize to values outside the grid
     pose_xyt_t nf_pose;
-    bool reachableF = false;
+    bool reachableF;
 
     nf_pose.x = nf.x;
     nf_pose.y = nf.y;
@@ -389,13 +329,11 @@ int8_t Exploration::executeExploringMap(bool initialize)
 
     frontiers_ = find_map_frontiers(currentMap_, currentPose_, kMinFrontierLength); //minFrontierLength default is 0.1m 
     reachableF = nearestReachableFrontier(nf,currentPose_);
-    //printf("\nEXECUTE EXP MAP :: NEAREST FRONTIER RETURN VALUES : global minimum currently at x = %f   y = %f  \n",  nf.x, nf.y);
     if (reachableF) 	// a frontier exist, is reachable and path length >2
     {
     	nf_pose.x = nf.x;
         nf_pose.y = nf.y;
         currentPath_ = search_for_path(currentPose_, nf_pose, inflatedMap_, params_);
-        printf("EXECUTE EXP MAP :: reachableF found, current path updated to x,y = %f , %f\n", nf_pose.x, nf_pose.y );
     }  
 
     /////////////////////////////// End student code ///////////////////////////////
@@ -409,22 +347,17 @@ int8_t Exploration::executeExploringMap(bool initialize)
     // If no frontiers remain, then exploration is complete
     if(frontiers_.empty())
     {
-    	printf("EXPLORE MAP : no more frontiers  COMPLETE\n");
         status.status = exploration_status_t::STATUS_COMPLETE;
     }
     // Else if there's a path to follow, then we're still in the process of exploring
     else if(reachableF)
     {
-    	printf("EXPLORE MAP : there is at least one reachable frontier IN PROGRESS\n");
-    	status.status = exploration_status_t::STATUS_IN_PROGRESS;
+        status.status = exploration_status_t::STATUS_IN_PROGRESS;
     }
     // Otherwise, there are frontiers, but no valid path exists, so exploration has failed
     else
     {
-    	printf("EXPLORE MAP : no more frontiers AND not in progress FAILED\n");
-        status.status = exploration_status_t::STATUS_COMPLETE;
-        //status.status = exploration_status_t::STATUS_IN_PROGRESS;
-    	//status.status = exploration_status_t::STATUS_FAILED;
+        status.status = exploration_status_t::STATUS_FAILED;
     }
     
     lcmInstance_->publish(EXPLORATION_STATUS_CHANNEL, &status);
@@ -438,9 +371,7 @@ int8_t Exploration::executeExploringMap(bool initialize)
 
         // If exploration is completed, then head home
         case exploration_status_t::STATUS_COMPLETE:
-            // TED
             return exploration_status_t::STATE_RETURNING_HOME;
-
             
         // If something has gone wrong and we can't reach all frontiers, then fail the exploration.
         case exploration_status_t::STATUS_FAILED:
@@ -633,47 +564,52 @@ int8_t Exploration::executeEscapingMap(bool initialize)
     *       (2) currentPath_.path_length > 1  :  currently following a path to the escape pose
     */
 
-    Point<float> nf;      // used to store nearest frontier grid coordinates
-    pose_xyt_t nf_pose;
-    nf.x = nf.y = -1;   // initialize to values outside the grid
-    bool reachableF = false;
-    robot_path_t tmp_path;
 
-	if (escapePose_.x!=-1) 		// we know where the exit is
+    Point<int> nf;      // used to store nearest frontier grid coordinates
+    nf.x = nf.y = -1;   // initialize to values outside the grid
+    bool reachableF;
+
+	if (escapePose_!=-1) 		// we know where the exit is
 	{
-        currentPath_ = escapeHack;
-		//currentPath_ = search_for_path(currentPose_, escapePose_, inflatedMap_, params_);
+		currentPath_ = search_for_path(currentPose_, escapePose_, inflatedMap_, params_);
 	}
 	else 						// we try to find the exit
 	{
-		// frontiers is working on the latest map, it will find the exit if it exist or as soon as it opens up
-		// it assumes we are driving pass the exit in the route home->key->treasure->home
-		// this will switch path to exit as soon as found, and never again
 		frontiers_ = find_map_frontiers(currentMap_, currentPose_, kMinFrontierLength); //minFrontierLength default is 0.1m
 		reachableF = nearestReachableFrontier(nf,currentPose_);
 		if (reachableF) 		// we found the exit, nf contains the exit coordinates
 		{
-            printf("ENTERED reachable escape frontier!!!\n");
-			// frontier will always be outside of the arena,
-			// more over it will be outside padding zone so at least 10cm outside which should ensure we crossed out
-			//escapePose_.y = 0;  // temporarily, need to figure out a better setting
-			nf_pose.x = nf.x;
-            nf_pose.y = nf.y;
-
-            escapeHack = search_for_path(currentPose_, nf_pose, inflatedMap_, params_);
-		      
-            if (escapeHack.path.size() > 1)
-            {
-                currentPath_ = escapeHack;
-                escapePose_.x = nf.x;
-                escapePose_.y = nf.y;
-            } 
-        }
+			escapePose_.x = nf.x;
+			escapePose_.y = nf.y;
+			escapePose_.y = 0;  // temporarily, need to figure out a better setting
+			currentPath_ = search_for_path(currentPose_, escapePose_, inflatedMap_, params_);
+		}
 		else  					// we have not found exit and keep heading home
 		{
 			currentPath_ = search_for_path(currentPose_, homePose_, inflatedMap_, params_);
 		}
 	}
+
+    if(distToEscape <= kReachedPositionThreshold)  // define exit pose as point 15cm outside the arena
+    {
+        const int xDeltas[] = { 3, 0, -3, 0 };	// offsets of 3 cells in each direction of reference cell
+        const int yDeltas[] = { 0, 3, 0, -3 };
+        pose_xyt_t exit_pose;
+        exit_pose.x = -1;
+        exit_pose.y = -1;
+    	exit_pose.theta = 0;
+
+    	for(int k = 1; k < 5; k++)
+        {
+    		exit_pose.x = escapePose_.x + xDeltas[k];
+    		exit_pose.y = escapePose_.y + yDeltas[k];
+            exitPath = search_for_path(currentPose_, exit_pose, inflatedMap_, params_);
+			if(exitPath_length>1)
+            {
+				currentPath_ = exitPath;
+            }
+
+    }
 
     /////////////////////////////// End student code ///////////////////////////////
     
@@ -688,6 +624,7 @@ int8_t Exploration::executeEscapingMap(bool initialize)
     // If we're within the threshold of the escape, then we're done.
     if(distToEscape <= kReachedPositionThreshold)
     {
+
     	status.status = exploration_status_t::STATUS_COMPLETE;
     }
     // Otherwise, if there's a path, then keep following it
@@ -698,8 +635,7 @@ int8_t Exploration::executeEscapingMap(bool initialize)
     // Else, there's no valid path to follow and we aren't home, so we have failed.
     else
     {
-        status.status = exploration_status_t::STATUS_IN_PROGRESS;
-        //status.status = exploration_status_t::STATUS_FAILED;
+        status.status = exploration_status_t::STATUS_FAILED;
     }
     
     lcmInstance_->publish(EXPLORATION_STATUS_CHANNEL, &status);

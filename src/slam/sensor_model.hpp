@@ -1,5 +1,6 @@
 #ifndef SLAM_SENSOR_MODEL_HPP
 #define SLAM_SENSOR_MODEL_HPP
+#include <lcmtypes/pose_xyt_t.hpp>
 
 class  rplidar_laser_t;
 class  OccupancyGrid;
@@ -39,6 +40,21 @@ public:
 private:
     
     ///////// TODO: Add any private members for your SensorModel ///////////////////
+    float sigma_hit;
+    float lambda_short;
+    float zhit;
+    float zshort;
+    float zmax;
+    float zrand;
+    float q;
+    float p;
+    float z_max;
+    int xk;
+    int yk;
+    float dist;
+    float dist_temp;
+    float sum;
+    pose_xyt_t begin_pose;
 };
 
 #endif // SLAM_SENSOR_MODEL_HPP

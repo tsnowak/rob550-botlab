@@ -27,7 +27,7 @@ inline float wrap_to_pi(float angle)
 * wrap_to_2pi takes an angle of arbitrary sizes and reduces it to the range [0, 2PI].
 *
 * \param    angle           Angle to wrap
-* \return   Equivalent angle in range [0, 2PI].
+* \return   Equivalent angle in range [0, 2PI).
 */
 inline float wrap_to_2pi(float angle)
 {
@@ -35,7 +35,7 @@ inline float wrap_to_2pi(float angle)
     {
         for(; angle < 0; angle += 2.0*M_PI);
     }
-    else if(angle > 2*M_PI)
+    else if(angle >= 2*M_PI)
     {
         for(; angle > 2*M_PI; angle -= 2.0*M_PI);
     }

@@ -45,6 +45,8 @@ public:
     */
     void setDistances(const OccupancyGrid& map);
     
+    int saveToFile();
+
     /**
     * isCellInGrid checks to see if the specified cell is within the boundary of the ObstacleDistanceGrid.
     * 

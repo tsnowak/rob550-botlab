@@ -79,16 +79,24 @@ public:
     void handleMap(const lcm::ReceiveBuffer* rbuf, const std::string& channel, const occupancy_grid_t* map);
     void handlePose(const lcm::ReceiveBuffer* rbuf, const std::string& channel, const pose_xyt_t* pose);
     
+    // GC added
+    bool nearestReachableFrontier(Point<float> &nf, const pose_xyt_t& rPose);
+    bool arrivedFlag_;                  // Flag indicating if PID reached its target pose. Initialize to 0 when you give a target to PID PID, update at end of PID
+
 private:
     
     int32_t teamNumber_;                // Team number of the robot handling the exploration
     
+    robot_path_t escapeHack;
+
     // Current state and data associated with the update -- use these variables for your exploration computations
     int8_t state_;                      // Current state of the high-level exploration state machine, as defined in exploration_status_t
     bool  shouldAttemptEscape_;         // Flag indicating if the escaping_map state should be entered after returning_home completes
     pose_xyt_t currentPose_;            // Robot pose to use for computing new paths
     OccupancyGrid currentMap_;          // Map to use for finding frontiers and planning paths to them
     MotionPlanner planner_;             // Planner to use for finding collision-free paths to select frontiers
+    ObstacleDistanceGrid inflatedMap_;  // GC : this is the inflated map that pads walls with a layer of thickness equal to rob_diameter or more
+    SearchParams params_;               // GC : Search params needs to be initialized in constructor never changed again
     
     pose_xyt_t homePose_;               // Pose of the robot when it is home, i.e. the initial pose before exploration begins
     pose_xyt_t keyPose_;                // Pose of the key in the map 
@@ -105,6 +113,7 @@ private:
     bool haveNewPose_;                  // Flag indicating if a new pose has been received since the last call to copyDataForUpdate
     bool haveNewMap_;                   // Flag indicating if a new map has been received since the last call to copyDataForUpdate
     bool haveHomePose_;                 // Flag indicating if the home pose has been set
+    
     
     lcm::LCM* lcmInstance_;             // Instance of LCM to use for sending out information
     std::mutex dataLock_;               // Lock to keep the LCM and explore threads properly synchronized

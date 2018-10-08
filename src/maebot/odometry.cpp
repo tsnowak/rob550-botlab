@@ -6,8 +6,9 @@
 #include <math.h>
 #include <stdio.h>
 
-float D2R = 3.1415/180;
-float R2D = 180/3.1415;
+float pi = 3.14159265358979323846;
+float D2R = pi/180;
+float R2D = 180/pi;
 float TSpD = 131000000;           // gyro coversion factor in ticks-msec per degree , results in degrees
 float errTpS = 103.395054 * 0.94 ;   // gyro error in ticks per msec measured * adjustment to 94% eliminated error
 float thres_theta;
@@ -73,7 +74,7 @@ public:
         //odometry_t odometry;
         maebot_encoders_t deltaEnc;
         float b, dl, dr, dt, dtimu, odo_dtheta, imu_dtheta, dtheta, dx, w, v;
-        int movedFlag = 0;
+        int movedFlag = 0;  
 
         if (prevEnc.left_ticks_total != currEnc.left_ticks_total || prevEnc.right_ticks_total != currEnc.right_ticks_total)
         {
@@ -117,21 +118,24 @@ public:
         tripENC.utime = currEnc.utime-t0e;
         tripENC.x += dx*cos(tripENC.theta);
         tripENC.y += dx*sin(tripENC.theta);
-        tripENC.theta += odo_dtheta;
+        tripENC.theta += odo_dtheta + 2*pi;         // 2*pi added to ensure theta remains positive, because theta is pos and dtheta is small
+        tripENC.theta = fmod(tripENC.theta,2*pi);   // fmod wraps the positive angle to 0 to 2*pi
         tripENC.total_left_distance += dl;
         tripENC.total_right_distance += dr;
 
         tripIMU.utime = currIMU.utime-initIMU.utime;
         tripIMU.x += dx*cos(tripIMU.theta);
         tripIMU.y += dx*sin(tripIMU.theta);
-        tripIMU.theta += imu_dtheta;
+        tripIMU.theta += imu_dtheta + 2*pi;
+        tripIMU.theta = fmod(tripIMU.theta,2*pi);
         tripIMU.total_left_distance += dl;
         tripIMU.total_right_distance += dr;
 
-        trip.utime = currEnc.utime-t0e;
+        trip.utime = currEnc.utime;     // -t0e
         trip.x += dx*cos(trip.theta);
         trip.y += dx*sin(trip.theta);
-        trip.theta += dtheta;
+        trip.theta += dtheta + 2*pi;
+        trip.theta = fmod(trip.theta,2*pi);
         trip.total_left_distance += dl;
         trip.total_right_distance += dr;
 

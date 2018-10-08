@@ -5,6 +5,8 @@
 #include <slam/moving_laser_scan.hpp>
 #include <common/point.hpp>
 
+const float kLargeTheta = 0.05;
+
 Mapping::Mapping(float maxLaserDistance, int8_t hitOdds, int8_t missOdds)
 : kMaxLaserDistance_(maxLaserDistance)
 , kHitOdds_(hitOdds)
@@ -20,7 +22,14 @@ void Mapping::updateMap(const rplidar_laser_t& scan, const pose_xyt_t& begSPose,
     //////////////// TODO: Implement your occupancy grid algorithm here ///////////////////////
 
 	MovingLaserScan movingScan(scan, begSPose, endSPose, 1);  //object contains an array of scan beams with different starting points adjusted for movement of lidar
-	printf("\n begSPose x,y,theta = %1.3f,%1.3f,%1.3f endSpose x,y,theta = %1.3f,%1.3f,%1.3f \n", begSPose.x, begSPose.y, begSPose.theta, endSPose.x, endSPose.y, endSPose.theta);
+	//printf("\n begSPose x,y,theta = %1.3f,%1.3f,%1.3f endSpose x,y,theta = %1.3f,%1.3f,%1.3f \n", begSPose.x, begSPose.y, begSPose.theta, endSPose.x, endSPose.y, endSPose.theta);
+	
+	float diffTheta = fabs(endSPose.theta - begSPose.theta);
+	if(diffTheta>kLargeTheta)
+	{
+		printf("DELTA THETA TOO HIGH = %1.3f  >>    NOT UPDATING MAP", diffTheta);
+		return;
+	}
 
 	adjusted_ray_t beam;
 	float xi,yi,xh,yh,xs,ys;
@@ -64,7 +73,8 @@ void Mapping::updateMap(const rplidar_laser_t& scan, const pose_xyt_t& begSPose,
 			else { map.setLogOdds(hrow,hcol, map.operator()(hrow,hcol) =127); }
 			
 			if(fabs(fmod(ang,1.57))<0.025){ // use 0.025 to print only quadrants 
-				printf("Beam # = %i  xi,yi = %1.3f,%1.3f range = %1.3f angle = %1.3f xh,yh = %1.3f,%1.3f hit row/col = %i,%i \n", b,xi,yi,beam.range,ang,xh,yh,hrow,hcol);}
+				//printf("Beam # = %i  xi,yi = %1.3f,%1.3f range = %1.3f angle = %1.3f xh,yh = %1.3f,%1.3f hit row/col = %i,%i \n", b,xi,yi,beam.range,ang,xh,yh,hrow,hcol);
+			}
 		}
 
 		// update as free everything along the beam trajectory line except the final/hit point 

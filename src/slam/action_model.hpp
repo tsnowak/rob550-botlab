@@ -50,12 +50,17 @@ public:
     * \param    sample          Sample to be moved
     * \return   New sample based on distribution from the motion model at the current update.
     */
-    particle_t applyAction(const particle_t& sample);
+    particle_t applyAction(const particle_t& sample, const int i);
     
 private:
     
     ////////// TODO: Add private member variables needed for you implementation ///////////////////
-    /*float alpha1;       //Robot-specific error parameters
+    float previous_x;   //Previous odometry pose
+    float previous_y;
+    float previous_theta;
+    long long int previous_time;
+
+    float alpha1;       //Robot-specific error parameters
     float alpha2;
     float alpha3;
     float alpha4;
@@ -72,7 +77,9 @@ private:
 
     float drot1_cap;    //Corrected values for drot1,dtrans,drot2
     float dtrans_cap;
-    float drot2_cap;*/
+    float drot2_cap;
+
+    float t;        //Time
 };
 
 #endif // SLAM_ACTION_MODEL_HPP

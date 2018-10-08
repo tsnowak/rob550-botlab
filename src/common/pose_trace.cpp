@@ -60,6 +60,7 @@ pose_xyt_t PoseTrace::poseAt(int64_t time) const
         if((trace_[i-1].utime <= time) && (time <= trace_[i].utime))
         {
             interpolated = interpolate_pose_by_time(time, trace_[i-1], trace_[i]);
+            //interpolated.theta = wrap_to_2pi(interpolated.theta);
             break;
         }
     }

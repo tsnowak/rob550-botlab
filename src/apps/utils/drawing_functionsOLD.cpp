@@ -55,29 +55,23 @@ void draw_pose_trace(const PoseTrace& poses, const float* color, vx_buffer_t* bu
     //poses.at(i).x is value of the x term of the ith member of the vector poses
     //printf("Nyaa \n");
     
-    float points1[2*poses.size()];
-    int npoints1 = poses.size();
-    std::vector< float > arr1;
+    float points[2*poses.size()];
+    int npoints = poses.size();
+    std::vector< float > arr;
+
     for(unsigned int i = 0; i < poses.size(); i++)
     {
-        arr1.push_back(poses.at(i).x);
-        arr1.push_back(poses.at(i).y);
+        arr.push_back(poses.at(i).x);
+        arr.push_back(poses.at(i).y);
+        /*vx_object_t* trace = vxo_chain(vxo_mat_translate2(poses.at(i).x,poses.at(i).y),
+                                vxo_mat_rotate_z(poses.at(i).theta),
+                                vxo_mat_scale(PROJ_SCALE),
+                                vxo_arrow(vxo_mesh_style(vx_green)));
+        vx_buffer_add_back(buffer, trace);*/
     }
-     std::copy(arr1.begin(), arr1.end(), points1);
-    vx_resc_t *verts1 = vx_resc_copyf(points1, npoints1*2);
-    vx_buffer_add_back(buffer, vxo_lines(verts1, npoints1, GL_LINES, vxo_points_style(color, 2.0f)));
-
-    float points2[2*(poses.size()-1)];
-    int npoints2 = poses.size()-1;
-    std::vector< float > arr2;
-    for(unsigned int i = 1; i < poses.size(); i++)
-    {
-        arr2.push_back(poses.at(i).x);
-        arr2.push_back(poses.at(i).y);
-    }
-    std::copy(arr2.begin(), arr2.end(), points2);
-    vx_resc_t *verts2 = vx_resc_copyf(points2, npoints2*2);
-    vx_buffer_add_back(buffer, vxo_lines(verts2, npoints2, GL_LINES, vxo_points_style(color, 2.0f)));
+    std::copy(arr.begin(), arr.end(), points);
+    vx_resc_t *verts = vx_resc_copyf(points, npoints*2);
+    vx_buffer_add_back(buffer, vxo_lines(verts, npoints, GL_LINES, vxo_points_style(color, 2.0f)));
 }
 
 
@@ -111,12 +105,7 @@ void draw_occupancy_grid(const OccupancyGrid& grid, vx_buffer_t* buffer)
     {
         for(int j = 0; j < grid.widthInCells(); ++j)
         {
-            if (grid.logOdds(j,i) < 0)
-                img->buf[(i*img->stride)+j] = 254;
-            else if (grid.logOdds(j,i) == 0)
-                img->buf[(i*img->stride)+j] = 127;
-            else
-                img->buf[(i*img->stride)+j] = 0;
+            img->buf[(i*img->stride)+j] = -grid.logOdds(j,i)+127;
             //printf("%d    ",grid.logOdds(j,i));    
         }
     }
@@ -170,38 +159,6 @@ void draw_particles(const particles_t& particles, vx_buffer_t* buffer)
 void draw_path(const robot_path_t& path, const float* color, vx_buffer_t* buffer)
 {
     ////////////////// TODO: Draw robot_path_t as specified in assignment ////////////////////////////
-    float points1[2*path.path_length];
-    int npoints1 = path.path_length;
-    std::vector< float > arr1;
-    for(int i = 0; i < path.path_length; i++)
-    {
-        arr1.push_back(path.path[i].x);
-        arr1.push_back(path.path[i].y);
-    }
-    std::copy(arr1.begin(), arr1.end(), points1);
-    vx_resc_t *verts1 = vx_resc_copyf(points1, npoints1*2);
-    vx_buffer_add_back(buffer, vxo_lines(verts1, npoints1, GL_LINES, vxo_points_style(color, 2.0f)));
-
-    float points2[2*(path.path_length)];
-    int npoints2 = path.path_length;
-    std::vector< float > arr2;
-    for(int i = 1; i < path.path_length; i++)
-    {
-        arr2.push_back(path.path[i].x);
-        arr2.push_back(path.path[i].y);
-    }
-    std::copy(arr2.begin(), arr2.end(), points2);
-    vx_resc_t *verts2 = vx_resc_copyf(points2, npoints2*2);
-    vx_buffer_add_back(buffer, vxo_lines(verts2, npoints2, GL_LINES, vxo_points_style(color, 2.0f)));
-
-    for(int i = 0; i < path.path_length; i++)
-    {
-        vx_object_t* path1 = vxo_chain(vxo_mat_translate2(path.path[i].x,path.path[i].y),
-                            vxo_mat_rotate_z(path.path[i].theta),
-                            vxo_mat_scale(PROJ_SCALE/5),
-                            vxo_box(vxo_mesh_style(color)));
-        vx_buffer_add_back(buffer, path1);
-    }
 }
 
 
@@ -218,18 +175,4 @@ void draw_frontiers(const std::vector<frontier_t>& frontiers,
                     vx_buffer_t* buffer)
 {
     //////////////////// TODO: Draw the frontiers using one box for each cell located along a frontier ////////////////
-    Point<float> box_position;
-    
-    for(unsigned int g = 0; g < frontiers.size(); g++)
-    {
-        int size_cells = frontiers[g].cells.size();  //Size of cells in each frontier
-        for(int h = 0; h < size_cells; h++)
-        {
-            box_position = frontiers[g].cells[h];
-            vx_object_t *box = vxo_chain(vxo_mat_translate2(box_position.x + PROJ_SCALE/2, box_position.y + PROJ_SCALE/2), 
-                               vxo_mat_scale(PROJ_SCALE),
-                               vxo_rect(vxo_mesh_style(color)));
-            vx_buffer_add_back(buffer, box);
-        }
-    }
 }

@@ -44,10 +44,10 @@ BotGui::BotGui(lcm::LCM* lcmInstance, int argc, char** argv, int widthInPixels, 
     // Copy over all the colors for drawing pose traces
     traceColors_.push_back(vx_red);
     traceColors_.push_back(vx_orange);
-    traceColors_.push_back(vx_purple);
+    traceColors_.push_back(vx_forest);
     traceColors_.push_back(vx_magenta);
     traceColors_.push_back(vx_maroon);
-    traceColors_.push_back(vx_forest);
+    traceColors_.push_back(vx_purple);
     traceColors_.push_back(vx_navy);
     traceColors_.push_back(vx_olive);
     traceColors_.push_back(vx_plum);

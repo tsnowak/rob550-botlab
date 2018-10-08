@@ -4,6 +4,9 @@
 #include <optitrack/optitrack_channels.h>
 #include <unistd.h>
 #include <cassert>
+#include <fstream>
+
+#include <planning/obstacle_distance_grid.hpp>
 
 OccupancyGridSLAM::OccupancyGridSLAM(int         numParticles,
                                      int8_t      hitOddsIncrease,
@@ -35,6 +38,7 @@ OccupancyGridSLAM::OccupancyGridSLAM(int         numParticles,
     {
         haveMap_ = map_.loadFromFile(localizationOnlyMap);
         assert(haveMap_);   // if there's no map, then the localization can't run!
+        //std::cerr << "Load Map Successful!" << haveMap_ << "\n";
         
         mode_ = localization_only;
     }
@@ -69,11 +73,15 @@ void OccupancyGridSLAM::runSLAM(void)
         if(isReadyToUpdate())
         {
             // Then run an iteration of our SLAM algorithm
+            //std::cerr << "Ready to Update" << "\n";
             runSLAMIteration();
+            //std::cerr << "Ran SLAM iteration" << "\n";
         }
-        // Otherwise, do a quick spin while waiting for data rather than using more complicated condition variable.
+        // Otherwise, do a q
+        //need to update left and right wheel speed according to definition/use uick spin while waiting for data rather than using more complicated condition variable.
         else
         {
+            //printf("sun SLAM :: usleep\n");
             usleep(1000);
         }
     }
@@ -134,11 +142,13 @@ void OccupancyGridSLAM::handleOdometry(const lcm::ReceiveBuffer* rbuf, const std
     odomPose.y = odometry->y;
     odomPose.theta = odometry->theta;
     odometryPoses_.addPose(odomPose);
+    //printf("UPDATE HANDLE Odometry values,%f,%f,%f\n",odomPose.x,odomPose.y,odomPose.theta);
 }
 
 
 void OccupancyGridSLAM::handlePose(const lcm::ReceiveBuffer* rbuf, const std::string& channel, const pose_xyt_t* pose)
 {
+    //printf("SLAM: currentPose_: x: %f\ty: %f\tth: %f\n", (*pose).x, (*pose).y, (*pose).theta);
     std::lock_guard<std::mutex> autoLock(dataMutex_);
     groundTruthPoses_.addPose(*pose);
 }
@@ -164,6 +174,8 @@ bool OccupancyGridSLAM::isReadyToUpdate(void)
     
     bool haveData = false;
     
+    //printf("GridSLAM :: incomingScans? = %i \n", incomingScans_.empty());
+
     // If there's at least one scan to process, then check if odometry/pose information is available
     if(!incomingScans_.empty())
     {
@@ -178,12 +190,11 @@ bool OccupancyGridSLAM::isReadyToUpdate(void)
         // Otherwise, only see if a new pose has arrived
         bool haveNewPose = (mode_ == mapping_only) && (groundTruthPoses_.containsPoseAtTime(nextScan.times.back()));
         
-        //printf("Mode = %i \n",mode_);
-
         haveData = haveNewOdom || haveNewPose;
     }
     
     // If all SLAM data and optitrack data has arrived, then we're ready to go.
+    //printf("GridSLAM :: is ready to update haveData?  = %i \n", haveData);
     return haveData && !waitingForOptitrack_;
 }
 
@@ -191,13 +202,18 @@ bool OccupancyGridSLAM::isReadyToUpdate(void)
 void OccupancyGridSLAM::runSLAMIteration(void)
 {
     copyDataForSLAMUpdate();
+    //std::cerr << "Copied Data for SLAM update" << "\n";
     initializePosesIfNeeded();
+    //std::cerr << "Initialized poses" << "\n";
     
     // Sanity check the laser data to see if rplidar_driver has lost sync
     if(currentScan_.num_ranges > 250)
     {
+        //std::cerr << "Rplidar in sync" << "\n";
         updateLocalization();
+        //std::cerr << "Updated Localization" << "\n";
         updateMap();
+        //std::cerr << "Updated Map" << "\n";
     }
     else 
     {
@@ -225,6 +241,8 @@ void OccupancyGridSLAM::copyDataForSLAMUpdate(void)
     else
     {
         currentOdometry_ = odometryPoses_.poseAt(currentScan_.times.back());
+        //printf("UPDATE COPY DATA Odometry values,%f,%f,%f\n",currentOdometry_.x,currentOdometry_.y,currentOdometry_.theta);
+
     }
 }
 
@@ -261,8 +279,12 @@ void OccupancyGridSLAM::updateLocalization(void)
 {
     if(haveMap_ && (mode_ != mapping_only))
     {
+        //std::cerr << "Have map and mode not mapping only" << "\n";
         previousPose_ = currentPose_;
+        //std::cerr << "Update previous pose" << "\n";
+        //printf("UPDATE LOCALIZATION Odometry values,%f,%f,%f\n",currentOdometry_.x,currentOdometry_.y,currentOdometry_.theta);
         currentPose_  = filter_.updateFilter(currentOdometry_, currentScan_, map_);
+        //std::cerr << "Got current pose" << "\n";
         
         auto particles = filter_.particles();
 
@@ -278,21 +300,24 @@ void OccupancyGridSLAM::updateMap(void)
     {
         // Process the map
         //GC mapper_.updateMap(currentScan_, currentPose_, map_);
+
         mapper_.updateMap(currentScan_, previousPose_, currentPose_, map_);  // passing previous pose to interpolate lidar scans when updating map
         haveMap_ = true;
     }
 
     // Publish the map even in localization-only mode to ensure the visualization is meaningful
     // Send every 5th map -- about 1Hz update rate for map output -- can change if want more or less during operation
-    if(mapUpdateCount_ % 5 == 0)
+    if(mapUpdateCount_ % 4 == 0)
     {
         auto mapMessage = map_.toLCM();
         lcm_.publish(SLAM_MAP_CHANNEL, &mapMessage);
+        map_.saveToFile("current.map");
         printf("PUBLISHED updated map 5 times, mapUpdateCount = %i \n\n", mapUpdateCount_);
+        map_.saveToFile("grid_map_.txt");
     }
 
-    
     /**
+
     switch(mapUpdateCount_) 
     {
       case 0 :

@@ -25,6 +25,14 @@ class OccupancyGrid;
 *   4) Normalize the weights.
 *   5) Use the max-weight or mean-weight pose as the estimated pose for this update.
 */
+
+struct {
+    bool operator()(const particle_t& a, const particle_t& b)
+    {
+        return a.weight > b.weight;
+    }
+} compareParticles;
+
 class ParticleFilter
 {
 public:
@@ -84,6 +92,10 @@ private:
                                                        const rplidar_laser_t& laser,
                                                        const OccupancyGrid&   map);
     pose_xyt_t estimatePosteriorPose(const std::vector<particle_t>& posterior);
+
+    float previous_x;
+    float previous_y;
+    float previous_theta;
 };
 
 #endif // SLAM_PARTICLE_FILTER_HPP

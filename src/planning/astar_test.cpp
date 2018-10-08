@@ -1,98 +1,62 @@
-#include <common/grid_utils.hpp>
-#include <common/timestamp.h>
 #include <planning/motion_planner.hpp>
 #include <slam/occupancy_grid.hpp>
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/max.hpp>
-#include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/median.hpp>
-#include <boost/accumulators/statistics/min.hpp>
-#include <boost/accumulators/statistics/variance.hpp>
-#include <cassert>
-#include <cmath>
-#include <fstream>
 #include <iostream>
 #include <iterator>
-#include <map>
 
-/*
-* timing_info_t stores the timing information for the tests that are run.
-*/
-typedef std::map<std::string, std::vector<int64_t>> timing_info_t;
-int gNumTestRepeats = 1;
-timing_info_t gSuccess;     // Time to successfully find paths  HACK -- don't put global variables in your own code!
-timing_info_t gFail;        // Time to find failures  HACK -- don't put global variables in your own code!
+const float kGridWidth = 15.0f;
+const float kGridHeight = 15.0f;
+const float kMetersPerCell = 0.05f;
 
 
 bool test_empty_grid(void);
+bool test_constricted_grid(void);
+bool test_sparse_grid(void);
 bool test_filled_grid(void);
-bool test_narrow_constriction_grid(void);
-bool test_wide_constriction_grid(void);
-bool test_convex_grid(void);
-bool test_maze_grid(void);
-bool test_saved_poses(const std::string& mapFile, const std::string& posesFile, const std::string& testName);
 
-robot_path_t timed_find_path(const pose_xyt_t& start, 
-                             const pose_xyt_t& end, 
-                             const MotionPlanner& planner, 
-                             const std::string& testName);
-
-bool is_valid_path(const robot_path_t& path, double robotRadius, const OccupancyGrid& map);
-bool is_safe_cell(int x, int y, double robotRadius, const OccupancyGrid& map);
+OccupancyGrid generate_uniform_grid(int8_t logOdds);
+OccupancyGrid generate_constricted_grid(double openingWidth);
+OccupancyGrid generate_random_grid(double occupiedAmount);
 
 std::ostream& operator<<(std::ostream& out, const pose_xyt_t& pose);
-
-void print_timing_info(timing_info_t& info);
 
 
 int main(int argc, char** argv)
 {
-    if(argc > 1)
+    if(test_empty_grid())
     {
-        gNumTestRepeats = std::max(std::atoi(argv[1]), 1);
-        std::cout << "Running astar_test with " << gNumTestRepeats << " repeats for each planning problem.\n";
+        std::cout << "PASSED: test_empty_grid\n";
     }
     else
     {
-        std::cout << "Running astar_test with " << gNumTestRepeats << " repeats for each planning problem.\nTo change this "
-            << "number, specify the number of repeats on the command-line as:\n  ./astar_test <num repeats>  \nwhere "
-            << "num_repeats is an integer > 0.\n";
+        std::cout << "FAILED: test_empty_grid\n";
     }
     
-    typedef bool (*test_func) (void);
-    std::vector<test_func> tests = { 
-        test_empty_grid,
-        test_filled_grid,
-        test_narrow_constriction_grid,
-        test_wide_constriction_grid,
-        test_convex_grid,
-        test_maze_grid
-    };
-    
-    std::size_t numPassed = 0;
-    for(auto& t : tests)
+    if(test_constricted_grid())
     {
-        if(t())
-        {
-            ++numPassed;
-        }
-    }
-    
-    std::cout << "\nTiming information for successful planning attempts:\n";
-    print_timing_info(gSuccess);
-    
-    std::cout << "\nTiming information for failed planning attempts:\n";
-    print_timing_info(gFail);
-    
-    if(numPassed != tests.size())
-    {
-        std::cout << "\n\nINCOMPLETE: Passed " << numPassed << " of " << tests.size() 
-        << " tests. Keep debugging and testing!\n";
+        std::cout << "PASSED: test_constricted_grid\n";
     }
     else
     {
-        std::cout << "\n\nCOMPLETE! All " << tests.size() << " were passed! Good job!\n";
+        std::cout << "FAILED: test_constricted_grid\n";
+    }
+    
+//     TODO
+//     if(test_sparse_grid())
+//     {
+//         std::cout << "PASSED: test_sparse_grid\n";
+//     }
+//     else
+//     {
+//         std::cout << "FAILED: test_sparse_grid\n";
+//     }
+    
+    if(test_filled_grid())
+    {
+        std::cout << "PASSED: test_filled_grid\n";
+    }
+    else
+    {
+        std::cout << "FAILED: test_filled_grid\n";
     }
     
     return 0;
@@ -101,212 +65,301 @@ int main(int argc, char** argv)
 
 bool test_empty_grid(void)
 {
-    return test_saved_poses("../data/empty.map", "../data/empty_poses.txt", __FUNCTION__);
+    OccupancyGrid grid = generate_uniform_grid(-10);
+    MotionPlannerParams plannerParams;
+    plannerParams.robotRadius = 0.1;
+    
+    MotionPlanner planner(plannerParams);
+    planner.setMap(grid);
+    
+    int numTotalPaths = 0;
+    int numCorrectPaths = 0;
+    
+    // See that a straight-line path has only two poses -- the start and end
+    {
+        pose_xyt_t start;
+        start.x = -5.0;
+        start.y = 0.0;
+        
+        pose_xyt_t goal;
+        goal.x = 5.0;
+        goal.y = 0.0;
+        
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        if(path.path_length == 2)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correct path for " << start << "->" << goal << '\n';
+        }
+        else
+        {
+            std::cout << "Incorrect path for " << start << "->" << goal << "\nFound path:";
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    // See that a straight-line path has only two poses -- the start and end
+    {
+        pose_xyt_t start;
+        start.x = 1.0;
+        start.y = 5.0;
+        
+        pose_xyt_t goal;
+        goal.x = 1.0;
+        goal.y = -5.0;
+        
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        if(path.path_length == 2)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correct path for " << start << "->" << goal << '\n';
+        }
+        else
+        {
+            std::cout << "Incorrect path for " << start << "->" << goal << "\nFound path:";
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    // See that a diagonal path has only two poses -- the start and end
+    {
+        pose_xyt_t start;
+        start.x = 5.0;
+        start.y = 5.0;
+        
+        pose_xyt_t goal;
+        goal.x = -5.0;
+        goal.y = -5.0;
+        
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        if(path.path_length == 2)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correct path for " << start << "->" << goal << '\n';
+        }
+        else
+        {
+            std::cout << "Incorrect path for " << start << "->" << goal << "\nFound path:";
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    return numTotalPaths == numCorrectPaths;
+}
+
+
+bool test_constricted_grid(void)
+{
+    MotionPlannerParams plannerParams;
+    plannerParams.robotRadius = 0.075;
+    
+    MotionPlanner planner(plannerParams);
+    
+    int numTotalPaths = 0;
+    int numCorrectPaths = 0;
+    
+    pose_xyt_t start;
+    start.x = 0.0;
+    start.y = 5.0;
+    
+    pose_xyt_t goal;
+    goal.x = 0.0;
+    goal.y = -5.0;
+    
+    // See that the search can go through a large opening
+    {
+        double constriction = plannerParams.robotRadius * 4;
+        OccupancyGrid grid = generate_constricted_grid(constriction);
+        planner.setMap(grid);
+        
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        
+        if(path.path_length > 1)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correct path for " << start << "->" << goal << " with constriction " << constriction << '\n';
+        }
+        else
+        {
+            std::cout << "Incorrect path for " << start << "->" << goal << " with constriction " << constriction << '\n';
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    // See that the search can start close to a wall
+    {
+        pose_xyt_t collisionStart;
+        collisionStart.x = -2.5;
+        collisionStart.y = 0.051;
+        
+        double constriction = plannerParams.robotRadius * 4;
+        OccupancyGrid grid = generate_constricted_grid(constriction);
+        planner.setMap(grid);
+        
+        robot_path_t path = planner.planPath(collisionStart, goal);
+        
+        ++numTotalPaths;
+        
+        if(path.path_length > 1)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correct path for " << start << "->" << goal << " with constriction " << constriction 
+                << " Starting against the wall.\n";
+        }
+        else
+        {
+            std::cout << "Incorrect path for " << start << "->" << goal << " with constriction " << constriction 
+                << " Starting against the wall.\n";
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    // See that the search fails to get through a small opening
+    {
+        double constriction = plannerParams.robotRadius - kMetersPerCell;
+        OccupancyGrid grid = generate_constricted_grid(constriction);
+        planner.setMap(grid);
+        
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        
+        if(path.path_length == 1)
+        {
+            ++numCorrectPaths;
+            std::cout << "Correctly found no path for " << start << "->" << goal << " with constriction " 
+                << constriction << '\n';
+        }
+        else
+        {
+            std::cout << "Incorrect found a path for " << start << "->" << goal << " with constriction " 
+                << constriction << '\n';
+        }
+        
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
+    }
+    
+    return numCorrectPaths == numTotalPaths;
+}
+
+
+bool test_sparse_grid(void)
+{
+    int numTotalPaths = 0;
+    int numCorrectPaths = 0;
+    
+    return numTotalPaths == numCorrectPaths;
 }
 
 
 bool test_filled_grid(void)
 {
-    return test_saved_poses("../data/filled.map", "../data/filled_poses.txt", __FUNCTION__);
-}
-
-
-bool test_narrow_constriction_grid(void)
-{
-    return test_saved_poses("../data/narrow.map", "../data/narrow_poses.txt", __FUNCTION__);
-}
-
-
-bool test_wide_constriction_grid(void)
-{
-    return test_saved_poses("../data/wide.map", "../data/wide_poses.txt", __FUNCTION__);
-}
-
-
-bool test_convex_grid(void)
-{
-    return test_saved_poses("../data/convex.map", "../data/convex_poses.txt", __FUNCTION__);
-}
-
-
-bool test_maze_grid(void)
-{
-    return test_saved_poses("../data/maze.map", "../data/maze_poses.txt", __FUNCTION__);
-}
-
-
-bool test_saved_poses(const std::string& mapFile, const std::string& posesFile, const std::string& testName)
-{
-    std::cout << "\nSTARTING: " << testName << '\n';
-    
-    OccupancyGrid grid;
-    grid.loadFromFile(mapFile);
-    
-    std::ifstream poseIn(posesFile);
-    if(!poseIn.is_open())
-    {
-        std::cerr << "ERROR: No maze poses located in " << posesFile 
-            << " Please run astar_test directly from the bin/ directory.\n";
-        exit(-1);
-    }
-    
-    int numGoals;
-    poseIn >> numGoals;
-    
-    pose_xyt_t start;
-    pose_xyt_t goal;
-    start.theta = 0.0;
-    goal.theta = 0.0;
-    bool shouldExist;
-    
+    OccupancyGrid grid = generate_uniform_grid(10);
     MotionPlannerParams plannerParams;
-    plannerParams.robotRadius = 0.075;
+    plannerParams.robotRadius = 0.1;
     
     MotionPlanner planner(plannerParams);
     planner.setMap(grid);
     
-    int numCorrect = 0;
+    int numTotalPaths = 0;
+    int numCorrectPaths = 0;
     
-    for(int n = 0; n < numGoals; ++n)
+    // Ensure that no path exists in a filled grid
     {
-        poseIn >> start.x >> start.y >> goal.x >> goal.y >> shouldExist;
+        pose_xyt_t start;
+        start.x = 1.0;
+        start.y = 5.0;
         
-        robot_path_t path = timed_find_path(start, goal, planner, testName);
+        pose_xyt_t goal;
+        goal.x = 1.0;
+        goal.y = -5.0;
         
-        // See if the generated path was valid
-        bool foundPath = path.path_length > 1;
-        // The goal must be the same position as the end of the path if there was success
-        if(!path.path.empty())
+        robot_path_t path = planner.planPath(start, goal);
+        
+        ++numTotalPaths;
+        if(path.path_length == 1)
         {
-            auto goalCell = global_position_to_grid_cell(Point<float>(goal.x, goal.y), grid);
-            auto endCell = global_position_to_grid_cell(Point<float>(path.path.back().x, path.path.back().y), grid);
-            foundPath &= goalCell == endCell;
-        }
-        
-        if(foundPath)
-        {
-            if(shouldExist && is_valid_path(path, plannerParams.robotRadius, grid))
-            {
-                std::cout << "Correctly found path between start and goal: " << start << " -> " << goal << "\n";
-                ++numCorrect;
-            }
-            else if(!shouldExist && is_valid_path(path, plannerParams.robotRadius, grid))
-            {
-                std::cout << "Incorrectly found valid path between start and goal: " << start << " -> " << goal << "\n";
-            }
-            else if(shouldExist && !is_valid_path(path, plannerParams.robotRadius, grid))
-            {
-                std::cout << "Incorrectly found unsafe path between start and goal: " << start << " -> " << goal 
-                    << " Too close to obstacle!\n";
-            }
-            else
-            {
-                std::cout << "Incorrectly found unsafe path between start and goal: " << start << " -> " << goal << "\n";
-            }
+            ++numCorrectPaths;
+            std::cout << "Correctly found no path for " << start << "->" << goal << '\n';
         }
         else
         {
-            if(shouldExist)
-            {
-                std::cout << "Incorrectly found no path between start and goal: " << start << " -> " << goal << "\n";
-            }
-            else
-            {
-                std::cout << "Correctly found no path between start and goal: " << start << " -> " << goal << "\n";
-                ++numCorrect;
-            }
+            std::cout << "Incorrect path for " << start << "->" << goal << "\nFound path:";
         }
-    }
-    
-    if(numCorrect == numGoals)
-    {
-        std::cout << "PASSED! " << testName << '\n';
-    }
-    else
-    {
-        std::cout << "FAILED! " << testName << '\n';
-    }
-    
-    return numCorrect == numGoals;
-}
-
-
-robot_path_t timed_find_path(const pose_xyt_t& start, 
-                             const pose_xyt_t& end, 
-                             const MotionPlanner& planner, 
-                             const std::string& testName)
-{
-    // Perform each search many times to get better timing information
-    robot_path_t path;
-    for(int n = 0; n < gNumTestRepeats; ++n)
-    {
-        int64_t startTime = utime_now();
-        path = planner.planPath(start, end);
-        int64_t endTime = utime_now();
         
-        if(path.path_length > 1)
-        {
-            gSuccess[testName].push_back(endTime - startTime);
-        }
-        else
-        {
-            gFail[testName].push_back(endTime - startTime);
-        }
+        std::copy(path.path.begin(), path.path.end(), std::ostream_iterator<pose_xyt_t>(std::cout, " "));
+        std::cout << '\n';
     }
     
-    return path;
+    return numTotalPaths == numCorrectPaths;
 }
 
 
-bool is_valid_path(const robot_path_t& path, double robotRadius, const OccupancyGrid& map)
+OccupancyGrid generate_uniform_grid(int8_t logOdds)
 {
-    // If there's only a single entry, then it isn't a valid path
-    if(path.path_length < 2)
-    {
-        return false;
-    }
+    OccupancyGrid grid(kGridWidth, kGridHeight, kMetersPerCell);
     
-    // Look at each position in the path, along with any intermediate points between the positions to make sure they are
-    // far enough from walls in the occupancy grid to be safe
-    for(auto p : path.path)
+    for(int y = 0; y < grid.heightInCells(); ++y)
     {
-        auto cell = global_position_to_grid_cell(Point<float>(p.x, p.y), map);
-        if(!is_safe_cell(cell.x, cell.y, robotRadius, map))
+        for(int x = 0; x < grid.widthInCells(); ++x)
         {
-            return false;
+            grid(x, y) = logOdds;
         }
     }
     
-    return true;
+    return grid;
 }
 
 
-bool is_safe_cell(int x, int y, double robotRadius, const OccupancyGrid& map)
+OccupancyGrid generate_constricted_grid(double openingWidth)
 {
-    // Search a circular region around (x, y). If any of the cells within the robot radius are occupied, then the
-    // cell isn't safe.
-    const int kSafeCellRadius = std::lrint(std::ceil(robotRadius * map.cellsPerMeter()));
+    OccupancyGrid grid = generate_uniform_grid(-10);
     
-    for(int dy = -kSafeCellRadius; dy <= kSafeCellRadius; ++dy)
+    // Draw a line right through the middle of the grid. Have the line start after the opening.
+    int openingCellY = grid.heightInCells() / 2;
+    int openingWidthInCells = openingWidth * grid.cellsPerMeter();
+    
+    for(int x = openingWidthInCells; x < grid.widthInCells(); ++x)
     {
-        for(int dx = -kSafeCellRadius; dx <= kSafeCellRadius; ++dx)
+        grid(x, openingCellY) = 10;
+    }
+    
+    return grid;
+}
+
+
+OccupancyGrid generate_random_grid(double occupiedAmount)
+{
+    OccupancyGrid grid(kGridWidth, kGridHeight, kMetersPerCell);
+    
+    for(int y = 0; y < grid.heightInCells(); ++y)
+    {
+        for(int x = 0; x < grid.widthInCells(); ++x)
         {
-            // Ignore the corners of the square region, where outside the radius of the robot
-            if(std::sqrt(dx*dx + dy*dy) * map.metersPerCell() > robotRadius)
-            {
-                continue;
-            }
-            
-            // If the odds at the cells are greater than 0, then there's a collision, so the cell isn't safe
-            if(map.logOdds(x + dx, y + dy) > 0)
-            {
-                return false;
-            }
+            grid(x, y) = (drand48() < occupiedAmount) ? 10 : -10;
         }
     }
     
-    // The area around the cell is free of obstacles, so all is well
-    return true;
+    return grid;
 }
 
 
@@ -314,26 +367,4 @@ std::ostream& operator<<(std::ostream& out, const pose_xyt_t& pose)
 {
     out << '(' << pose.x << ',' << pose.y << ',' << pose.theta << ')';
     return out;
-}
-
-
-void print_timing_info(timing_info_t& info)
-{
-    using namespace boost::accumulators;
-    typedef accumulator_set<double, stats<tag::mean, tag::variance, tag::median, tag::max, tag::min>> TimingAcc;
-    
-    for(auto& times : info)
-    {
-        assert(!times.second.empty());
-        
-        TimingAcc acc;
-        std::for_each(times.second.begin(), times.second.end(), std::ref(acc));
-        
-        std::cout << times.first << " :: (us)\n"
-            << "\tMin :    " << min(acc) << '\n'
-            << "\tMean:    " << mean(acc) << '\n'
-            << "\tMax:     " << max(acc) << '\n'
-            << "\tMedian:  " << median(acc) << '\n'
-            << "\tStd dev: " << std::sqrt(variance(acc)) << '\n'; 
-    }
 }

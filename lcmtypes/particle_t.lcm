@@ -6,4 +6,5 @@ struct particle_t
     pose_xyt_t pose;            // (x,y,theta) pose estimate
     pose_xyt_t parent_pose;     // (x,y,theta) of the prior pose the new estimate came from
     double     weight;          // normalized weight of the particle as computed by the sensor model
+    double 	   interval;		// ADDED BY TED: end value of threshold this particle covers for importance distribution
 }
