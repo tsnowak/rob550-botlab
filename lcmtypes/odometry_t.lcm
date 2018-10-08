@@ -1,0 +1,15 @@
+struct odometry_t
+{
+    int64_t utime;
+
+    float x;
+    float y;
+    float theta;
+
+    float total_left_distance;
+    float total_right_distance;
+    float wheelbase;
+    
+    float left_wheel_speed;
+    float right_wheel_speed;
+}

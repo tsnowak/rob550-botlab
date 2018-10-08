@@ -1,0 +1,8 @@
+struct maebot_line_sensors_t
+{
+    int64_t utime;
+    
+    int32_t left_sensor;
+    int32_t center_sensor;
+    int32_t right_sensor;
+}

@@ -1,0 +1,11 @@
+struct sama5_request_t
+{
+	int64_t utime; // filled in by sendinger
+
+	int16_t xid;   // transaction id
+
+	int16_t opcode;
+
+	int16_t len;
+	byte    data[len];
+}

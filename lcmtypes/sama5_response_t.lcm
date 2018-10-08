@@ -1,0 +1,13 @@
+struct sama5_response_t
+{
+	// sama5 driver's synchronized time estimate corresponding to sama5_utime.
+
+	int64_t utime;
+	int64_t device_utime;
+
+	int16_t xid;
+	int16_t opcode;
+
+	int16_t len;
+	byte    data[len];
+}

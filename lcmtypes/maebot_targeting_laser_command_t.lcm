@@ -1,0 +1,8 @@
+
+struct maebot_targeting_laser_command_t
+{
+    int64_t utime;
+
+    // True/1 means on.
+    boolean laser_power;
+}

@@ -1,0 +1,7 @@
+struct maebot_encoders_t
+{
+    int64_t utime;
+    
+    int32_t left_ticks_total;
+    int32_t right_ticks_total;
+}

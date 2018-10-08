@@ -1,0 +1,33 @@
+=== Files ===
+
+= drive_square.cpp
+    - implementation of drive_square, which you'll use to test your odometry and motion controller.
+    - you don't need to edit this program, but might find it useful to see how to send commands
+      to the motion_controller.
+
+= maebot_channels.h
+    - definition of input and output messages used by all programs that run on the Maebot
+    
+= maebot_driver.c
+    - implementation of maebot_driver that talks with the bottom board to send commands to the motors
+      and read various internal information
+    - you won't need to edit this file, but understanding how communication occurs between the two
+      boards is useful.
+      
+= motion_controller.cpp
+    - definition of the motion_controller program for the Maebot.
+    - you will implement your PID controller for Task 2 here.
+    
+= odometry.cpp
+    - defintion of the odometry program for the Maebot.
+    - you will implement your odometry and gyrodometry for Task 1 here.
+    
+= rplidar.h and rplidar.c
+    - implementation of the driver for talking to the rplidar.
+    - you won't need to edit this file, but understanding how communication occurs with the rplidar
+      is useful.
+      
+= rplidar_driver.c
+    - implementation of rplidar_driver, which triggers Maebot-specific hardware for using the rplidar
+      and then turns on the rplidar and runs forever.
+      

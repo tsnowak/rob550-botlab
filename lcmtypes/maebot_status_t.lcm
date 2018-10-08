@@ -1,0 +1,9 @@
+struct maebot_status_t
+{
+    int64_t utime;
+
+    int8_t battery_percent; // [0, 100]
+    boolean power_button;
+    boolean user_button;
+    string firmware_version;
+}

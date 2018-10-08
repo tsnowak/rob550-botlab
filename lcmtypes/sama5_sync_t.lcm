@@ -1,0 +1,12 @@
+struct sama5_sync_t
+{
+	int64_t utime; // time at which this message was computed
+
+	int64_t sync_send_utime;
+	int64_t sync_recv_utime;
+
+	int64_t sama5_utime;
+
+	int64_t best_offset;
+	int64_t best_offset_uncertainty;
+}

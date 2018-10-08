@@ -1,0 +1,15 @@
+struct maebot_motor_command_t
+{
+    int64_t utime;
+
+    // Between -1.0 and 1.0
+    // -1.0 = maximum reverse speed
+    // 1.0  = maximum forward speed
+    float left_motor_speed;
+    float right_motor_speed;
+    
+    // 1 if the motor should be given a command
+    // setting to 0 means the motor will just coast to a stop
+    boolean left_motor_enabled;
+    boolean right_motor_enabled;
+}
