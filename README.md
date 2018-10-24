@@ -1,3 +1,8 @@
+
+<p align="center">
+    <img src="./media/botlab.gif"/>
+<p/>
+
 ## Directories 
 
 ```
